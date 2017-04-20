@@ -310,9 +310,25 @@ def feature_importance_df(df):
     features1 = df.copy()
     features2 = df.copy()
 
-    # Create a correlation matrix
-    cm = corr_dataframe(features1)
-    sc_only = cm[cm['level_0'] == 'session_completed']
+    # Create a correlation and significance dataframe for all features
+    # for loop populates empty list with tuples of (feature, correlation, significance)
+    # for each feature against the feature 'session_completed'.
+    all_features = list(df.copy())
+    output = []
+
+    for i in all_features:
+        x = df.copy()['session_completed']
+        y = df.copy()[i]
+        c_s = stats.pearsonr(x, y)
+        feature = i
+        correlation = c_s[0]
+        significance = c_s[1]
+        output.append((feature, correlation, significance))
+
+    sc_only = pd.DataFrame(output, columns=('feature', 'correlation', 'significance'))
+
+    #cm = corr_dataframe(features1)
+    #sc_only = cm[cm['level_0'] == 'session_completed']
 
     # Isolate target data
     completed_session = features2['session_completed']
@@ -326,21 +342,21 @@ def feature_importance_df(df):
     cleaned_features_dummy = pd.get_dummies(features2)
 
     # change the data frame to a matrix of floats so that scaler can be applied
-    X = cleaned_features_dummy.as_matrix().astype(np.float)
+    x = cleaned_features_dummy.as_matrix().astype(np.float)
 
     # Apply the standard scaler
     scaler = StandardScaler()
-    X = scaler.fit_transform(X)
+    x = scaler.fit_transform(x)
 
     # Apply regular SMOTE
     sm = SMOTE(kind='regular')
-    X_resampled, y_resampled = sm.fit_sample(X, y)
+    x_resampled, y_resampled = sm.fit_sample(x, y)
 
     # set parameters for random forest
     forest = ExtraTreesClassifier(n_estimators=250,
                                   random_state=0)
     # build random forest
-    forest.fit(X_resampled, y_resampled)
+    forest.fit(x_resampled, y_resampled)
 
     # empty data frame to hold output
     df = pd.DataFrame()
@@ -361,12 +377,13 @@ def feature_importance_df(df):
     # out = corr_dataframe(features)
     # sc_only = out[out['level_0'] == 'session_completed']
 
-    merged_df = df.merge(sc_only, how='outer', left_on='features', right_on='level_1')
+    merged_df = df.merge(sc_only, how='outer', left_on='features', right_on='feature')
 
     df_sorted = merged_df.sort_values('feature_importance', ascending=False)
-    df_sorted.pop('level_0')
-    df_sorted.pop('level_1')
+    df_sorted.pop('feature')
+    #df_sorted.pop('level_1')
     df_sorted.rename(columns={'correlation': 'corr_to_session_compl'}, inplace=True)
+
     return df_sorted
 
 
